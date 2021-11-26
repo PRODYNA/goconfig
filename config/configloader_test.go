@@ -41,10 +41,10 @@ func Test_LoadConfig(t *testing.T) {
 
 func Test_LoadConfigFail(t *testing.T) {
 	os.Setenv("SECRET_PWD", "secure")
-	os.Setenv("NESTED_SECRET_PWD", "moresecure")
+	os.Setenv("NESTED_SECRET_PWD-", "moresecure")
 
 	c := &Configuration{}
-	err := NewConfigLoader().LoadConfig( c)
+	err := NewConfigLoader().File("unkown.yaml").LoadConfig( c)
 	assert.NotNil(t, err)
 }
 

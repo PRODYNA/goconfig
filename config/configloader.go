@@ -5,8 +5,11 @@ import (
 	"io/ioutil"
 	"os"
 	"reflect"
+	"regexp"
 	"strings"
 )
+
+const envRegexp = `\${[Ee][Nn][Vv]:([A-Z\-\_]*)}`
 
 var defaultPaths = []string{"", "k8s/dev/", "config/", "./config/", "/config/"}
 var defaultFileName = "config.yaml"
@@ -46,7 +49,12 @@ func (c ConfigLoaderImpl) LoadConfigData(data []byte, cfg interface{}) error {
 		return err
 	}
 
-	resolvePasswords(cfg)
+
+	reg, err := regexp.Compile(envRegexp)
+	if err != nil {
+		return err
+	}
+	resolvePasswords(cfg, reg)
 	return nil
 }
 
@@ -64,7 +72,12 @@ func (c ConfigLoaderImpl) LoadConfig(cfg interface{}) error {
 		return err
 	}
 
-	resolvePasswords(cfg)
+	reg, err := regexp.Compile(envRegexp)
+	if err != nil {
+		return err
+	}
+
+	resolvePasswords(cfg, reg)
 	return nil
 }
 
@@ -79,14 +92,14 @@ func (c ConfigLoaderImpl) getFileName() string {
 	return c.file
 }
 
-func resolvePasswords(cfg interface{}) {
+func resolvePasswords(cfg interface{}, regexp *regexp.Regexp) {
 
 	v := reflect.ValueOf(cfg)
 
-	resolveEnvironment(v)
+	resolveEnvironment(v, regexp)
 }
 
-func resolveEnvironment(v reflect.Value) {
+func resolveEnvironment(v reflect.Value, regexp *regexp.Regexp) {
 
 	if v.Kind() == reflect.Ptr && !v.IsNil() {
 		v = v.Elem()
@@ -97,20 +110,17 @@ func resolveEnvironment(v reflect.Value) {
 		if value.Kind() == reflect.String {
 			cv := value.String()
 			if strings.HasPrefix(strings.ToLower(cv), "${env:") && strings.HasSuffix(cv, "}") {
-				env := extractVariable(cv)
+				env := extractVariable(cv, regexp)
 				value.SetString(os.Getenv(env))
 			}
 
 		} else if value.Kind() == reflect.Struct {
-			resolveEnvironment(value)
+			resolveEnvironment(value, regexp)
 		}
 	}
 }
 
-func extractVariable(s string) string {
-	// TODO use regex for replace
-	s = strings.Replace(s, "${ENV:", "", 1)
-	s = strings.Replace(s, "${Env:", "", 1)
-	s = strings.Replace(s, "${env:", "", 1)
-	return strings.Replace(s, "}", "", 1)
+func extractVariable(s string, regexp *regexp.Regexp) string {
+
+	return regexp.ReplaceAllString(s, "$1")
 }
